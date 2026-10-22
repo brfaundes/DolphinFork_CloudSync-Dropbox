@@ -8,6 +8,28 @@ of the GNU General Public License, version 2 or later (GPLv2+).
 
 Please read the [FAQ](https://dolphin-emu.org/docs/faq/) before using Dolphin.
 
+## DolphinFork Cloud Sync
+
+This fork adds optional Dropbox synchronization for GameCube and Wii save data,
+available in the desktop (Qt) and Android interfaces.
+
+* Synchronize saves manually or automatically before and after playing a game.
+* Choose the Dropbox root folder used for synchronization.
+* Keep local and remote copies when both changed, under the user's Cloud Sync
+  conflict directory, instead of overwriting either one.
+* Save states can be synchronized separately and are disabled by default on
+  Android.
+
+Open **Tools > Cloud Sync** on desktop, or **Cloud Sync** from the main menu on
+Android, to connect a Dropbox account and configure synchronization. OAuth
+tokens are stored in the user's configuration directory and protected with
+DPAPI on Windows or a hardware-backed Android Keystore key on Android. To
+disconnect, use the same screen; this removes the stored tokens from the
+application configuration.
+
+This fork follows Dolphin's build instructions below. Updates from the upstream
+project are merged into the `main` branch of this repository.
+
 ## System Requirements
 
 ### Desktop

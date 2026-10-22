@@ -609,6 +609,21 @@ static bool ReadHeader(const std::string& filename, StateHeader& header)
   return ReadStateHeaderFromFile(header, f, get_version_header);
 }
 
+u32 GetStateVersion()
+{
+  return STATE_VERSION;
+}
+
+u32 GetStateVersionCookie()
+{
+  return COOKIE_BASE + STATE_VERSION;
+}
+
+bool ReadStateHeader(const std::string& filename, StateHeader& header)
+{
+  return ReadHeader(filename, header);
+}
+
 std::string GetInfoStringOfSlot(u32 slot, bool translate)
 {
   std::lock_guard lk{s_state_saves_in_progress};

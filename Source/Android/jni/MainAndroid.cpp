@@ -67,6 +67,7 @@
 
 #include "jni/AndroidCommon/AndroidCommon.h"
 #include "jni/AndroidCommon/IDCache.h"
+#include "jni/CloudSyncAndroid.h"
 
 namespace
 {
@@ -565,6 +566,8 @@ static void Run(JNIEnv* env, std::unique_ptr<BootParameters>&& boot, bool riivol
                                           volume.GetDiscNumber()));
   }
 
+  CloudSyncAndroid::SynchronizeBeforeBoot(env, *boot);
+
   s_need_nonblocking_alert_msg = true;
   std::unique_lock<std::mutex> surface_guard(s_surface_lock);
 
@@ -592,6 +595,8 @@ static void Run(JNIEnv* env, std::unique_ptr<BootParameters>&& boot, bool riivol
 
   s_game_metadata_is_valid = false;
   Core::Shutdown(Core::System::GetInstance());
+
+  CloudSyncAndroid::SynchronizeAfterShutdown(env);
 
   env->CallStaticVoidMethod(IDCache::GetNativeLibraryClass(),
                             IDCache::GetFinishEmulationActivity());

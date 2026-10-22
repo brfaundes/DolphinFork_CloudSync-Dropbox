@@ -3,12 +3,15 @@
 
 #include "Common/HttpRequest.h"
 
+#include <cctype>
 #include <chrono>
 #include <cstddef>
+#include <cstdio>
 #include <mutex>
 
 #include <curl/curl.h>
 
+#include "Common/IOFile.h"
 #include "Common/Logging/Log.h"
 #include "Common/ScopeGuard.h"
 #include "Common/StringUtil.h"
@@ -22,6 +25,9 @@ public:
   {
     GET,
     POST,
+    PUT,
+    PATCH,
+    Delete,
   };
 
   explicit Impl(std::chrono::milliseconds timeout_ms, ProgressCallback callback);
@@ -34,7 +40,8 @@ public:
   s32 GetLastResponseCode();
   Response Fetch(const std::string& url, Method method, const Headers& headers, const u8* payload,
                  size_t size, AllowedReturnCodes codes = AllowedReturnCodes::Ok_Only,
-                 std::span<Multiform> multiform = {});
+                 std::span<Multiform> multiform = {}, File::IOFile* upload_file = nullptr,
+                 File::IOFile* download_file = nullptr);
 
   static int CurlProgressCallback(Impl* impl, curl_off_t dltotal, curl_off_t dlnow,
                                   curl_off_t ultotal, curl_off_t ulnow);
@@ -96,6 +103,16 @@ HttpRequest::Response HttpRequest::Get(const std::string& url, const Headers& he
   return m_impl->Fetch(url, Impl::Method::GET, headers, nullptr, 0, codes);
 }
 
+HttpRequest::Response HttpRequest::GetToFile(const std::string& url, const std::string& path,
+                                             const Headers& headers, AllowedReturnCodes codes)
+{
+  File::IOFile file(path, "wb");
+  if (!file.IsOpen())
+    return {};
+
+  return m_impl->Fetch(url, Impl::Method::GET, headers, nullptr, 0, codes, {}, nullptr, &file);
+}
+
 HttpRequest::Response HttpRequest::Post(const std::string& url, std::span<const u8> payload,
                                         const Headers& headers, AllowedReturnCodes codes)
 {
@@ -107,6 +124,68 @@ HttpRequest::Response HttpRequest::Post(const std::string& url, std::string_view
 {
   return m_impl->Fetch(url, Impl::Method::POST, headers,
                        reinterpret_cast<const u8*>(payload.data()), payload.size(), codes);
+}
+
+HttpRequest::Response HttpRequest::PostFile(const std::string& url, const std::string& path,
+                                            const Headers& headers, AllowedReturnCodes codes)
+{
+  File::IOFile file(path, "rb");
+  if (!file.IsOpen())
+    return {};
+
+  return m_impl->Fetch(url, Impl::Method::POST, headers, nullptr, 0, codes, {}, &file, nullptr);
+}
+
+HttpRequest::Response HttpRequest::PostToFile(const std::string& url, const std::string& path,
+                                              const Headers& headers, AllowedReturnCodes codes)
+{
+  File::IOFile file(path, "wb");
+  if (!file.IsOpen())
+    return {};
+
+  return m_impl->Fetch(url, Impl::Method::POST, headers, nullptr, 0, codes, {}, nullptr, &file);
+}
+
+HttpRequest::Response HttpRequest::Put(const std::string& url, std::span<const u8> payload,
+                                       const Headers& headers, AllowedReturnCodes codes)
+{
+  return m_impl->Fetch(url, Impl::Method::PUT, headers, payload.data(), payload.size(), codes);
+}
+
+HttpRequest::Response HttpRequest::Put(const std::string& url, std::string_view payload,
+                                       const Headers& headers, AllowedReturnCodes codes)
+{
+  return m_impl->Fetch(url, Impl::Method::PUT, headers, reinterpret_cast<const u8*>(payload.data()),
+                       payload.size(), codes);
+}
+
+HttpRequest::Response HttpRequest::PutFile(const std::string& url, const std::string& path,
+                                           const Headers& headers, AllowedReturnCodes codes)
+{
+  File::IOFile file(path, "rb");
+  if (!file.IsOpen())
+    return {};
+
+  return m_impl->Fetch(url, Impl::Method::PUT, headers, nullptr, 0, codes, {}, &file, nullptr);
+}
+
+HttpRequest::Response HttpRequest::Patch(const std::string& url, std::span<const u8> payload,
+                                         const Headers& headers, AllowedReturnCodes codes)
+{
+  return m_impl->Fetch(url, Impl::Method::PATCH, headers, payload.data(), payload.size(), codes);
+}
+
+HttpRequest::Response HttpRequest::Patch(const std::string& url, std::string_view payload,
+                                         const Headers& headers, AllowedReturnCodes codes)
+{
+  return m_impl->Fetch(url, Impl::Method::PATCH, headers,
+                       reinterpret_cast<const u8*>(payload.data()), payload.size(), codes);
+}
+
+HttpRequest::Response HttpRequest::Delete(const std::string& url, const Headers& headers,
+                                          AllowedReturnCodes codes)
+{
+  return m_impl->Fetch(url, Impl::Method::Delete, headers, nullptr, 0, codes);
 }
 
 int HttpRequest::Impl::CurlProgressCallback(Impl* impl, curl_off_t dltotal, curl_off_t dlnow,
@@ -186,10 +265,22 @@ void HttpRequest::Impl::FollowRedirects(long max)
 
 std::string HttpRequest::Impl::GetHeaderValue(std::string_view name) const
 {
+  const auto equals_ignore_case = [](std::string_view a, std::string_view b) {
+    if (a.size() != b.size())
+      return false;
+    for (size_t i = 0; i < a.size(); ++i)
+    {
+      if (std::tolower(static_cast<unsigned char>(a[i])) !=
+          std::tolower(static_cast<unsigned char>(b[i])))
+        return false;
+    }
+    return true;
+  };
+
   for (const auto& [key, value] : m_response_headers)
   {
-    if (key == name)
-      return value.value();
+    if (equals_ignore_case(key, name))
+      return value.value_or(std::string{});
   }
 
   return {};
@@ -212,6 +303,19 @@ static size_t CurlWriteCallback(char* data, size_t size, size_t nmemb, void* use
   return actual_size;
 }
 
+static size_t CurlWriteFileCallback(char* data, size_t size, size_t nmemb, void* userdata)
+{
+  auto* file = static_cast<File::IOFile*>(userdata);
+  const size_t actual_size = size * nmemb;
+  return file->WriteBytes(data, actual_size) ? actual_size : 0;
+}
+
+static size_t CurlReadFileCallback(char* data, size_t size, size_t nmemb, void* userdata)
+{
+  auto* file = static_cast<File::IOFile*>(userdata);
+  return std::fread(data, size, nmemb, file->GetHandle());
+}
+
 static size_t header_callback(char* buffer, size_t size, size_t nitems, void* userdata)
 {
   auto* headers = static_cast<HttpRequest::Headers*>(userdata);
@@ -230,15 +334,86 @@ static size_t header_callback(char* buffer, size_t size, size_t nitems, void* us
 HttpRequest::Response HttpRequest::Impl::Fetch(const std::string& url, Method method,
                                                const Headers& headers, const u8* payload,
                                                size_t size, AllowedReturnCodes codes,
-                                               std::span<Multiform> multiform)
+                                               std::span<Multiform> multiform,
+                                               File::IOFile* upload_file,
+                                               File::IOFile* download_file)
 {
   m_response_headers.clear();
-  curl_easy_setopt(m_curl.get(), CURLOPT_POST, method == Method::POST);
+
+  // Reset options that may have been set by a previous request on this object.
+  curl_easy_setopt(m_curl.get(), CURLOPT_HTTPGET, 0L);
+  curl_easy_setopt(m_curl.get(), CURLOPT_POST, 0L);
+  curl_easy_setopt(m_curl.get(), CURLOPT_UPLOAD, 0L);
+  curl_easy_setopt(m_curl.get(), CURLOPT_CUSTOMREQUEST, nullptr);
+  curl_easy_setopt(m_curl.get(), CURLOPT_POSTFIELDS, nullptr);
+  curl_easy_setopt(m_curl.get(), CURLOPT_POSTFIELDSIZE_LARGE, static_cast<curl_off_t>(-1));
+  curl_easy_setopt(m_curl.get(), CURLOPT_READFUNCTION, nullptr);
+  curl_easy_setopt(m_curl.get(), CURLOPT_READDATA, nullptr);
+  curl_easy_setopt(m_curl.get(), CURLOPT_INFILESIZE_LARGE, static_cast<curl_off_t>(-1));
+  curl_easy_setopt(m_curl.get(), CURLOPT_MIMEPOST, nullptr);
+
   curl_easy_setopt(m_curl.get(), CURLOPT_URL, url.c_str());
-  if (method == Method::POST && multiform.empty())
+
+  const char* type = "";
+  switch (method)
+  {
+  case Method::GET:
+    curl_easy_setopt(m_curl.get(), CURLOPT_HTTPGET, 1L);
+    type = "GET";
+    break;
+  case Method::POST:
+    type = "POST";
+    if (upload_file)
+    {
+      curl_easy_setopt(m_curl.get(), CURLOPT_UPLOAD, 1L);
+      curl_easy_setopt(m_curl.get(), CURLOPT_CUSTOMREQUEST, "POST");
+      curl_easy_setopt(m_curl.get(), CURLOPT_READFUNCTION, CurlReadFileCallback);
+      curl_easy_setopt(m_curl.get(), CURLOPT_READDATA, upload_file);
+      curl_easy_setopt(m_curl.get(), CURLOPT_INFILESIZE_LARGE,
+                       static_cast<curl_off_t>(upload_file->GetSize()));
+    }
+    else
+    {
+      curl_easy_setopt(m_curl.get(), CURLOPT_POST, 1L);
+      if (!payload)
+      {
+        // libcurl otherwise falls back to reading the POST body from stdin, which may not exist.
+        static constexpr char EMPTY_BODY[] = "";
+        curl_easy_setopt(m_curl.get(), CURLOPT_POSTFIELDS, EMPTY_BODY);
+        curl_easy_setopt(m_curl.get(), CURLOPT_POSTFIELDSIZE_LARGE, static_cast<curl_off_t>(0));
+      }
+    }
+    break;
+  case Method::PUT:
+    type = "PUT";
+    if (upload_file)
+    {
+      curl_easy_setopt(m_curl.get(), CURLOPT_UPLOAD, 1L);
+      curl_easy_setopt(m_curl.get(), CURLOPT_READFUNCTION, CurlReadFileCallback);
+      curl_easy_setopt(m_curl.get(), CURLOPT_READDATA, upload_file);
+      curl_easy_setopt(m_curl.get(), CURLOPT_INFILESIZE_LARGE,
+                       static_cast<curl_off_t>(upload_file->GetSize()));
+    }
+    else
+    {
+      curl_easy_setopt(m_curl.get(), CURLOPT_CUSTOMREQUEST, "PUT");
+    }
+    break;
+  case Method::PATCH:
+    curl_easy_setopt(m_curl.get(), CURLOPT_CUSTOMREQUEST, "PATCH");
+    type = "PATCH";
+    break;
+  case Method::Delete:
+    curl_easy_setopt(m_curl.get(), CURLOPT_CUSTOMREQUEST, "DELETE");
+    type = "DELETE";
+    break;
+  }
+
+  if (payload && !upload_file && multiform.empty() && method != Method::GET &&
+      method != Method::Delete)
   {
     curl_easy_setopt(m_curl.get(), CURLOPT_POSTFIELDS, payload);
-    curl_easy_setopt(m_curl.get(), CURLOPT_POSTFIELDSIZE, size);
+    curl_easy_setopt(m_curl.get(), CURLOPT_POSTFIELDSIZE_LARGE, static_cast<curl_off_t>(size));
   }
 
   curl_mime* form = nullptr;
@@ -273,10 +448,17 @@ HttpRequest::Response HttpRequest::Impl::Fetch(const std::string& url, Method me
   curl_easy_setopt(m_curl.get(), CURLOPT_HEADERDATA, static_cast<void*>(&m_response_headers));
 
   std::vector<u8> buffer;
-  curl_easy_setopt(m_curl.get(), CURLOPT_WRITEFUNCTION, CurlWriteCallback);
-  curl_easy_setopt(m_curl.get(), CURLOPT_WRITEDATA, &buffer);
+  if (download_file)
+  {
+    curl_easy_setopt(m_curl.get(), CURLOPT_WRITEFUNCTION, CurlWriteFileCallback);
+    curl_easy_setopt(m_curl.get(), CURLOPT_WRITEDATA, download_file);
+  }
+  else
+  {
+    curl_easy_setopt(m_curl.get(), CURLOPT_WRITEFUNCTION, CurlWriteCallback);
+    curl_easy_setopt(m_curl.get(), CURLOPT_WRITEDATA, &buffer);
+  }
 
-  const char* type = method == Method::POST ? "POST" : "GET";
   const CURLcode res = curl_easy_perform(m_curl.get());
   if (res != CURLE_OK)
   {
@@ -289,7 +471,11 @@ HttpRequest::Response HttpRequest::Impl::Fetch(const std::string& url, Method me
 
   long response_code = 0;
   curl_easy_getinfo(m_curl.get(), CURLINFO_RESPONSE_CODE, &response_code);
-  if (response_code != 200)
+
+  const bool success = codes == AllowedReturnCodes::All2xx ?
+                           (response_code >= 200 && response_code < 300) :
+                           response_code == 200;
+  if (!success)
   {
     if (buffer.empty())
     {

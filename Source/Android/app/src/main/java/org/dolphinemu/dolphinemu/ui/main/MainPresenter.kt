@@ -14,6 +14,7 @@ import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModelProvider
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import org.dolphinemu.dolphinemu.BuildConfig
+import org.dolphinemu.dolphinemu.CloudSyncActivity
 import org.dolphinemu.dolphinemu.R
 import org.dolphinemu.dolphinemu.activities.EmulationActivity
 import org.dolphinemu.dolphinemu.features.settings.model.BooleanSetting
@@ -191,6 +192,11 @@ class MainPresenter(private val mainView: MainView, private val activity: Fragme
 
         R.id.menu_netplay -> {
             NetplaySetupActivity.launch(activity)
+            true
+        }
+
+        R.id.menu_cloud_sync -> {
+            activity.startActivity(Intent(activity, CloudSyncActivity::class.java))
             true
         }
 

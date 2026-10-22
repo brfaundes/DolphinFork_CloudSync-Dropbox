@@ -96,6 +96,7 @@ signals:
   void ShowFIFOPlayer();
   void ShowAboutDialog();
   void ShowCheatsManager();
+  void ShowCloudSync();
   void ShowResourcePackManager();
   void ShowSkylanderPortal();
   void ShowInfinityBase();

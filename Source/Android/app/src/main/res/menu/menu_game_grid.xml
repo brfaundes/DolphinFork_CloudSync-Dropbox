@@ -57,6 +57,11 @@
         app:showAsAction="never"/>
 
     <item
+        android:id="@+id/menu_cloud_sync"
+        android:title="@string/grid_menu_cloud_sync"
+        app:showAsAction="never"/>
+
+    <item
         android:id="@+id/menu_about"
         android:title="@string/grid_menu_about"
         app:showAsAction="never"/>

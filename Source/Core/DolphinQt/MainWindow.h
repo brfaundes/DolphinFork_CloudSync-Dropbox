@@ -17,6 +17,7 @@
 
 #include "Core/Boot/Boot.h"
 #include "DolphinQt/FIFO/FIFOPlayerWindow.h"
+#include "UICommon/CloudSync/Service.h"
 
 class QMenu;
 class QStackedWidget;
@@ -185,6 +186,7 @@ private:
   void ShowMemcardManager();
   void ShowResourcePackManager();
   void ShowCheatsManager();
+  void ShowCloudSyncDialog();
   void ShowRiivolutionBootWidget(const UICommon::GameFile& game);
 
 #ifdef USE_RETRO_ACHIEVEMENTS
@@ -252,6 +254,7 @@ private:
   bool m_is_screensaver_inhibited = false;
   u32 m_state_slot = 1;
   std::unique_ptr<BootParameters> m_pending_boot;
+  std::optional<CloudSync::GameIdentity> m_cloud_sync_identity;
 
   SettingsWindow* m_settings_window = nullptr;
   // m_fifo_window doesn't set MainWindow as its parent so that the fifo can be focused without

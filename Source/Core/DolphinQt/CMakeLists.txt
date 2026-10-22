@@ -41,6 +41,8 @@ add_executable(dolphin-emu
   CheatSearchFactoryWidget.h
   CheatSearchWidget.cpp
   CheatSearchWidget.h
+  CloudSyncDialog.cpp
+  CloudSyncDialog.h
   CheatsManager.cpp
   CheatsManager.h
   Achievements/AchievementBox.cpp
@@ -467,6 +469,7 @@ PRIVATE
 target_link_libraries(dolphin-emu
 PRIVATE
   core
+  sfml-network
   Qt6::Widgets
   uicommon
   imgui

@@ -76,6 +76,7 @@
 #include "DolphinQt/AboutDialog.h"
 #include "DolphinQt/Achievements/AchievementsWindow.h"
 #include "DolphinQt/CheatsManager.h"
+#include "DolphinQt/CloudSyncDialog.h"
 #include "DolphinQt/Config/FreeLookWindow.h"
 #include "DolphinQt/Config/LogConfigWidget.h"
 #include "DolphinQt/Config/LogWidget.h"
@@ -560,6 +561,7 @@ void MainWindow::ConnectMenuBar()
   connect(m_menu_bar, &MenuBar::ShowResourcePackManager, this,
           &MainWindow::ShowResourcePackManager);
   connect(m_menu_bar, &MenuBar::ShowCheatsManager, this, &MainWindow::ShowCheatsManager);
+  connect(m_menu_bar, &MenuBar::ShowCloudSync, this, &MainWindow::ShowCloudSyncDialog);
   connect(m_menu_bar, &MenuBar::BootGameCubeIPL, this, &MainWindow::OnBootGameCubeIPL);
   connect(m_menu_bar, &MenuBar::ImportNANDBackup, this, &MainWindow::OnImportNANDBackup);
   connect(m_menu_bar, &MenuBar::PerformOnlineUpdate, this, &MainWindow::PerformOnlineUpdate);
@@ -923,6 +925,23 @@ void MainWindow::TogglePause()
 void MainWindow::OnStopComplete()
 {
   m_stop_requested = false;
+
+  if (m_cloud_sync_identity)
+  {
+    const auto identity = *m_cloud_sync_identity;
+    m_cloud_sync_identity.reset();
+    const auto& settings = CloudSync::Service::GetInstance().GetSettings();
+    if (settings.enabled && settings.auto_sync)
+    {
+      const auto result = CloudSync::Service::GetInstance().Synchronize(identity);
+      if (result.status == CloudSync::SyncStatus::Conflict && !m_exit_requested)
+      {
+        ModalMessageBox::warning(this, tr("Cloud Sync"),
+                                 QString::fromStdString(result.message), QMessageBox::Ok);
+      }
+    }
+  }
+
   HideRenderWidget(!m_exit_requested, m_exit_requested);
 #ifdef USE_DISCORD_PRESENCE
   if (!m_netplay_dialog->isVisible())
@@ -1217,10 +1236,30 @@ void MainWindow::StartGame(std::unique_ptr<BootParameters>&& parameters)
   // We need the render widget before booting.
   ShowRenderWidget();
 
+  m_cloud_sync_identity.reset();
+  if (parameters)
+  {
+    if (const auto identity = CloudSync::IdentifyGame(*parameters))
+    {
+      m_cloud_sync_identity = identity;
+      const auto& settings = CloudSync::Service::GetInstance().GetSettings();
+      if (settings.enabled && settings.auto_sync)
+      {
+        const auto result = CloudSync::Service::GetInstance().Synchronize(*identity);
+        if (result.status == CloudSync::SyncStatus::Conflict)
+        {
+          ModalMessageBox::warning(this, tr("Cloud Sync"),
+                                   QString::fromStdString(result.message), QMessageBox::Ok);
+        }
+      }
+    }
+  }
+
   // Boot up, show an error if it fails to load the game.
   if (!BootManager::BootCore(m_system, std::move(parameters),
                              ::GetWindowSystemInfo(m_render_widget->windowHandle())))
   {
+    m_cloud_sync_identity.reset();
     ModalMessageBox::critical(this, tr("Error"), tr("Failed to init core"), QMessageBox::Ok);
     HideRenderWidget();
     return;
@@ -2117,6 +2156,12 @@ void MainWindow::ShowResourcePackManager()
   ResourcePackManager manager(this);
 
   manager.exec();
+}
+
+void MainWindow::ShowCloudSyncDialog()
+{
+  CloudSyncDialog dialog(this, [this] { return m_cloud_sync_identity; });
+  dialog.exec();
 }
 
 void MainWindow::ShowCheatsManager()

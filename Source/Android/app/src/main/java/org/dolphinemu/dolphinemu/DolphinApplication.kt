@@ -19,6 +19,7 @@ class DolphinApplication : Application() {
         instance = this
         registerActivityLifecycleCallbacks(activityTracker)
         System.loadLibrary("main")
+        CloudSyncBridge.initialize()
 
         val usbManager = getSystemService(USB_SERVICE) as UsbManager
         GCAdapter.manager = usbManager

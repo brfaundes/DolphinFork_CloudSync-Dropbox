@@ -87,6 +87,12 @@
             android:label="@string/settings"/>
 
         <activity
+            android:name=".CloudSyncActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Dolphin.Main"
+            android:label="@string/cloud_sync" />
+
+        <activity
             android:name=".features.cheats.ui.CheatsActivity"
             android:exported="false"
             android:theme="@style/Theme.Dolphin.Main"

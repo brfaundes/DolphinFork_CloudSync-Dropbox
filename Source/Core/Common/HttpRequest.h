@@ -23,6 +23,7 @@ public:
   enum class AllowedReturnCodes : u8
   {
     Ok_Only,
+    All2xx,
     All
   };
 
@@ -51,10 +52,28 @@ public:
   std::string GetHeaderValue(std::string_view name) const;
   Response Get(const std::string& url, const Headers& headers = {},
                AllowedReturnCodes codes = AllowedReturnCodes::Ok_Only);
+  Response GetToFile(const std::string& url, const std::string& path, const Headers& headers = {},
+                     AllowedReturnCodes codes = AllowedReturnCodes::Ok_Only);
   Response Post(const std::string& url, std::span<const u8> payload, const Headers& headers = {},
                 AllowedReturnCodes codes = AllowedReturnCodes::Ok_Only);
   Response Post(const std::string& url, std::string_view payload, const Headers& headers = {},
                 AllowedReturnCodes codes = AllowedReturnCodes::Ok_Only);
+  Response PostFile(const std::string& url, const std::string& path, const Headers& headers = {},
+                    AllowedReturnCodes codes = AllowedReturnCodes::Ok_Only);
+  Response PostToFile(const std::string& url, const std::string& path, const Headers& headers = {},
+                      AllowedReturnCodes codes = AllowedReturnCodes::Ok_Only);
+  Response Put(const std::string& url, std::span<const u8> payload, const Headers& headers = {},
+               AllowedReturnCodes codes = AllowedReturnCodes::Ok_Only);
+  Response Put(const std::string& url, std::string_view payload, const Headers& headers = {},
+               AllowedReturnCodes codes = AllowedReturnCodes::Ok_Only);
+  Response PutFile(const std::string& url, const std::string& path, const Headers& headers = {},
+                   AllowedReturnCodes codes = AllowedReturnCodes::Ok_Only);
+  Response Patch(const std::string& url, std::span<const u8> payload, const Headers& headers = {},
+                 AllowedReturnCodes codes = AllowedReturnCodes::Ok_Only);
+  Response Patch(const std::string& url, std::string_view payload, const Headers& headers = {},
+                 AllowedReturnCodes codes = AllowedReturnCodes::Ok_Only);
+  Response Delete(const std::string& url, const Headers& headers = {},
+                  AllowedReturnCodes codes = AllowedReturnCodes::Ok_Only);
 
   Response PostMultiform(const std::string& url, std::span<Multiform> multiform,
                          const Headers& headers = {},

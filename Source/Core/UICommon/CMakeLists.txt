@@ -1,6 +1,22 @@
 add_library(uicommon
   AutoUpdate.cpp
   AutoUpdate.h
+  CloudSync/Auth.cpp
+  CloudSync/Auth.h
+  CloudSync/Base64Url.cpp
+  CloudSync/Base64Url.h
+  CloudSync/Dropbox.cpp
+  CloudSync/Dropbox.h
+  CloudSync/Manifest.cpp
+  CloudSync/Manifest.h
+  CloudSync/Service.cpp
+  CloudSync/Service.h
+  CloudSync/Settings.cpp
+  CloudSync/Settings.h
+  CloudSync/SyncEngine.cpp
+  CloudSync/SyncEngine.h
+  CloudSync/Url.cpp
+  CloudSync/Url.h
   CommandLineParse.cpp
   CommandLineParse.h
   DiscordPresence.cpp
@@ -62,5 +78,5 @@ endif()
 
 if(MSVC)
   # Add precompiled header
-  target_link_libraries(uicommon PRIVATE use_pch)
+  target_link_libraries(uicommon PRIVATE use_pch crypt32)
 endif()

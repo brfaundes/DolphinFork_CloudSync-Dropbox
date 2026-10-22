@@ -82,6 +82,13 @@ struct StateExtendedHeader
 void Init(Core::System& system);
 void Shutdown();
 
+// Version of the savestate format used by this build.
+u32 GetStateVersion();
+u32 GetStateVersionCookie();
+
+// Reads the header of a savestate without loading the state.
+bool ReadStateHeader(const std::string& filename, StateHeader& header);
+
 // Returns a string containing information of the savestate in the given slot
 // which can be presented to the user for identification purposes
 std::string GetInfoStringOfSlot(u32 slot, bool translate = true);
